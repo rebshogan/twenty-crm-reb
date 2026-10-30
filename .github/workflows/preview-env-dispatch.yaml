@@ -62,12 +62,24 @@ jobs:
             echo 'APPS_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      # Preview envs run on the PUBLIC ci-public repo so the 5h keepalive job
-      # consumes free Actions minutes (private repos bill them). ci-public holds
-      # no privileged secret: it starts the tunnel and dispatches the URL back to
-      # twenty-factory for the PR comment *before* running any PR-controlled code.
+      # The upstream Twenty organisation owns this dispatcher App. Forks do
+      # not receive its client ID/private key; absence is an expected skip.
+      - name: Check upstream preview-dispatch credentials
+        id: dispatcher-config
+        env:
+          APP_ID: ${{ vars.TWENTY_WORKFLOW_DISPATCHER_CLIENT_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.TWENTY_WORKFLOW_DISPATCHER_PRIVATE_KEY }}
+        run: |
+          if [ -n "$APP_ID" ] && [ -n "$APP_PRIVATE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream Twenty preview dispatcher is not configured for this fork; skipping optional preview-environment dispatch."
+          fi
+
       - name: Mint ci-public dispatch token
         id: app-token
+        if: steps.dispatcher-config.outputs.available == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.TWENTY_WORKFLOW_DISPATCHER_CLIENT_ID }}
@@ -77,6 +89,7 @@ jobs:
           permission-actions: write
 
       - name: Dispatch preview-env to ci-public
+        if: steps.dispatcher-config.outputs.available == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
