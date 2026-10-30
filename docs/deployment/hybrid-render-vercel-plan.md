@@ -34,7 +34,7 @@ Status: implementation in progress on `infra/render-hybrid-plan`. No Render infr
 - `.github/workflows/validate-render-image.yml` builds the explicit production image on relevant pull-request changes, pushes to the implementation branch, and manual dispatch.
 - The workflow uses read-only repository permissions, disables checkout credential persistence, caches Docker layers, and verifies the API and worker runtime outputs.
 - **Verified success:** GitHub Actions run [41072695451](https://github.com/rebshogan/twenty-crm-reb/actions/runs/41072695451) completed successfully. Both the production image build and API/worker runtime-output validation steps passed.
-- Vercel preview deployment reached READY for the implementation branch. This confirms deployment readiness/build completion, not CRM end-to-end functionality. The preview is protected and has not been accepted as an unauthenticated browser/API smoke test.
+- Vercel preview deployment for commit `e1dc141416f4a4b59b9fc8920cf4f34eff0225ff` reached `READY` (deployment `dpl_E38Ky5XZXi3Uj1kJqejAWV1rQTSg`). A direct fetch returns `login_required`, confirming Vercel Deployment Protection blocks anonymous smoke tests. READY confirms build/deployment completion, not CRM functionality. An authenticated browser smoke test remains outstanding.
 - The optional upstream preview-environment dispatcher expects GitHub App credentials that forks do not have. The workflow has been guarded on both the PR base and implementation branches so this optional integration is skipped when those upstream credentials are absent. The historical failure predates the base-branch fix; verify a fresh event before considering this resolved operationally.
 - No Render database, Key Value, API or worker services have been provisioned.
 - No production domain has been changed or promoted.
@@ -95,6 +95,7 @@ A lower-cost worker configuration (512 MB RAM) would reduce the Render subtotal 
 
 ## Open validation items
 
+- Obtain an authorized maintainer review for the `.github/workflows/` changes. The repository's Sensitive paths approval check deliberately marks the PR head as failed until an approved review from its configured maintainer allowlist exists; the workflow job itself completes successfully. This is a repository security gate, not a build/test failure.
 - Verify a fresh PR event uses the updated base-branch preview-dispatch guard; old failed runs are historical.
 - Complete an authenticated browser/API smoke test against the Vercel preview.
 - Confirm Render Key Value connection URL format and supported eviction settings for the selected plan.
@@ -102,4 +103,4 @@ A lower-cost worker configuration (512 MB RAM) would reduce the Render subtotal 
 - Select the final object-storage provider/bucket and configure CORS.
 - Confirm the selected Render plan's persistent disk, worker, database, region and recurring cost.
 
-No Render resources have been created. Production rollout remains gated on backend provisioning approval, authenticated integration tests and rollback readiness.
+No Render resources have been created. Paid provisioning is on hold per user instruction. Continue with source-level checks, CI, and synthetic/local tests only. Production rollout remains gated on maintainer review, authenticated integration tests and rollback readiness.
