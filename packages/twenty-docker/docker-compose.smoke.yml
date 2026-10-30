@@ -1,0 +1,78 @@
+name: twenty-smoke
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: default
+      POSTGRES_USER: twenty
+      POSTGRES_PASSWORD: twenty-smoke-password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twenty -d default"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: "no"
+
+  server:
+    image: ${TWENTY_IMAGE:?Set TWENTY_IMAGE to the production image under test}
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_PORT: "3000"
+      PG_DATABASE_URL: postgres://twenty:twenty-smoke-password@db:5432/default
+      SERVER_URL: http://localhost:3000
+      REDIS_URL: redis://redis:6379
+      DISABLE_DB_MIGRATIONS: "false"
+      DISABLE_CRON_JOBS_REGISTRATION: "false"
+      STORAGE_TYPE: local
+      APP_SECRET: ci-only-secret-not-for-production-0123456789abcdef
+      IS_BILLING_ENABLED: "false"
+    volumes:
+      - server-local-data:/app/packages/twenty-server/.local-storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:3000/healthz >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+    restart: "no"
+
+  worker:
+    image: ${TWENTY_IMAGE:?Set TWENTY_IMAGE to the production image under test}
+    command: ["yarn", "worker:prod"]
+    environment:
+      PG_DATABASE_URL: postgres://twenty:twenty-smoke-password@db:5432/default
+      SERVER_URL: http://localhost:3000
+      REDIS_URL: redis://redis:6379
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+      STORAGE_TYPE: local
+      APP_SECRET: ci-only-secret-not-for-production-0123456789abcdef
+      IS_BILLING_ENABLED: "false"
+    volumes:
+      - server-local-data:/app/packages/twenty-server/.local-storage
+    depends_on:
+      db:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  server-local-data:
