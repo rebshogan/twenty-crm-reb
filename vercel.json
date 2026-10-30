@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "services",
+  "services": {
+    "twenty": {
+      "runtime": "container",
+      "root": ".",
+      "entrypoint": "packages/twenty-docker/twenty/Dockerfile"
+    }
+  },
+  "daemons": {
+    "twenty-worker": {
+      "root": ".",
+      "entrypoint": "packages/twenty-docker/twenty/Dockerfile",
+      "command": ["yarn", "worker:prod"],
+      "instances": {
+        "iad1": 0
+      }
+    }
+  }
+}
