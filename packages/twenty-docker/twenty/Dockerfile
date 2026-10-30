@@ -326,3 +326,21 @@ LABEL org.opencontainers.image.source=https://github.com/twentyhq/twenty
 LABEL org.opencontainers.image.description="All-in-one Twenty image for local development and SDK usage. Includes PostgreSQL, Redis, ClickHouse, server, and worker."
 
 ENTRYPOINT ["/init"]
+
+# ===========================================================================
+# Target: twenty-vercel (default production target for Vercel Services)
+#
+# Vercel's Dockerfile-based container builder uses the final/default stage.
+# Keep the development all-in-one image available explicitly via:
+#   docker build --target twenty-app-dev -f packages/twenty-docker/twenty/Dockerfile .
+#
+# The Vercel HTTP service uses this production server + frontend image. The
+# Vercel Daemon uses the same image with command ["yarn", "worker:prod"].
+# ===========================================================================
+FROM twenty AS twenty-vercel
+
+ENV NODE_PORT=3000
+
+EXPOSE 3000
+
+LABEL org.opencontainers.image.description="Twenty production server and frontend runtime for Vercel."
