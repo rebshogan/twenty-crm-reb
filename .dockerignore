@@ -1,5 +1,23 @@
+# Keep the Docker build context limited to source needed by the production
+# Twenty server + frontend image. The Dockerfile copies the selected workspace
+# packages explicitly; unrelated monorepo applications and documentation are
+# not part of this runtime.
+
 .git
-.env
+.github
+docs
+
+packages/twenty-docs
+packages/twenty-apps
+packages/twenty-website
+packages/twenty-cli
+packages/twenty-companion
+packages/twenty-agent-skills
+packages/twenty-claude-skills
+packages/twenty-e2e-testing
+packages/twenty-zapier
+
 **/node_modules
-.nx/cache
-packages/twenty-server/.env
+**/.nx
+**/coverage
+**/.local-storage
