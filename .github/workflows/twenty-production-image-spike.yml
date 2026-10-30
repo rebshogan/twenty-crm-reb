@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   build-production-image:
-    name: Build explicit Twenty production target
+    name: Build Vercel-default Twenty production target
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -54,7 +54,6 @@ jobs:
           docker buildx build \
             --progress=plain \
             --file packages/twenty-docker/twenty/Dockerfile \
-            --target twenty \
             --tag "$IMAGE_TAG" \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
@@ -64,11 +63,18 @@ jobs:
           docker image inspect "$IMAGE_TAG" \
             --format 'image={{.RepoTags}} size_bytes={{.Size}} architecture={{.Architecture}}'
 
-      - name: Confirm production runtime command is present
+      - name: Verify the Dockerfile default is the production runtime
+
         env:
           IMAGE_TAG: twenty-crm-spike:${{ github.sha }}
         run: |
           set -euo pipefail
           docker image inspect "$IMAGE_TAG" \
-            --format 'entrypoint={{json .Config.Entrypoint}} cmd={{json .Config.Cmd}} workdir={{.Config.WorkingDir}}'
+            --format 'entrypoint={{json .Config.Entrypoint}} cmd={{json .Config.Cmd}} workdir={{.Config.WorkingDir}} exposed={{json .Config.ExposedPorts}}'
+          docker image inspect "$IMAGE_TAG" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -Fx 'NODE_ENV=production'
+          docker image inspect "$IMAGE_TAG" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -Fx 'NODE_PORT=3000'
+          docker image inspect "$IMAGE_TAG" --format '{{.Config.WorkingDir}}' | grep -Fx '/app/packages/twenty-server'
+          docker image inspect "$IMAGE_TAG" --format '{{json .Config.Entrypoint}}' | grep -F '"/app/entrypoint.sh"'
+          docker image inspect "$IMAGE_TAG" --format '{{json .Config.Cmd}}' | grep -F 'node'
           docker run --rm --entrypoint node "$IMAGE_TAG" --version
+          docker run --rm --entrypoint yarn "$IMAGE_TAG" --version
