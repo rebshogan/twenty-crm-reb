@@ -4,13 +4,13 @@
     "twenty": {
       "runtime": "container",
       "root": ".",
-      "entrypoint": "packages/twenty-docker/twenty/Dockerfile"
+      "entrypoint": "Dockerfile.vercel"
     }
   },
   "daemons": {
     "twenty-worker": {
       "root": ".",
-      "entrypoint": "packages/twenty-docker/twenty/Dockerfile",
+      "entrypoint": "Dockerfile.vercel",
       "command": [
         "yarn",
         "worker:prod"
