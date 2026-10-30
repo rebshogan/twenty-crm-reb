@@ -1,0 +1,43 @@
+name: Validate Render production image
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: Optional application version label
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-server-image:
+    name: Build explicit production server target
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production API/worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/twenty-docker/twenty/Dockerfile.render
+          target: twenty-server-production
+          push: false
+          load: true
+          tags: twenty-crm-reb:render-validation
+          build-args: |
+            APP_VERSION=${{ inputs.app_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify API and worker entrypoints exist
+        run: |
+          docker image inspect twenty-crm-reb:render-validation >/dev/null
+          docker run --rm --entrypoint sh twenty-crm-reb:render-validation -c 'test -x /app/entrypoint.sh && test -f /app/packages/twenty-server/dist/main.js && test -f /app/packages/twenty-server/package.json'
