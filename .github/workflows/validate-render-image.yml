@@ -81,7 +81,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify API and worker entrypoints exist
+      - name: Verify API and worker runtime outputs
         run: |
           docker image inspect twenty-crm-reb:render-validation >/dev/null
-          docker run --rm --entrypoint sh twenty-crm-reb:render-validation -c 'test -x /app/entrypoint.sh && test -f /app/packages/twenty-server/dist/main.js && test -f /app/packages/twenty-server/package.json'
+          docker run --rm --entrypoint sh twenty-crm-reb:render-validation -c 'test -x /app/entrypoint.sh && test -f /app/packages/twenty-server/dist/main.js && test -f /app/packages/twenty-server/dist/queue-worker/queue-worker.js && test -f /app/packages/twenty-server/package.json'
