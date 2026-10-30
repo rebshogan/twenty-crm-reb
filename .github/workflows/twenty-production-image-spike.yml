@@ -1,0 +1,74 @@
+name: Twenty production image spike
+
+on:
+  push:
+    branches:
+      - architecture/foundation-plan
+    paths:
+      - "packages/twenty-docker/twenty/Dockerfile"
+      - "packages/twenty-docker/twenty/entrypoint.sh"
+      - "packages/twenty-server/**"
+      - "packages/twenty-front/**"
+      - "packages/twenty-shared/**"
+      - "packages/twenty-emails/**"
+      - "packages/twenty-client-sdk/**"
+      - "packages/twenty-ui/**"
+      - "packages/twenty-sdk/**"
+      - "package.json"
+      - "yarn.lock"
+      - ".yarnrc.yml"
+      - ".yarn/**"
+      - "nx.json"
+      - "tsconfig.base.json"
+      - ".dockerignore"
+      - ".github/workflows/twenty-production-image-spike.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: twenty-production-image-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-production-image:
+    name: Build explicit Twenty production target
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production image (no push)
+        env:
+          IMAGE_TAG: twenty-crm-spike:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --progress=plain \
+            --file packages/twenty-docker/twenty/Dockerfile \
+            --target twenty \
+            --tag "$IMAGE_TAG" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --load \
+            .
+
+          docker image inspect "$IMAGE_TAG" \
+            --format 'image={{.RepoTags}} size_bytes={{.Size}} architecture={{.Architecture}}'
+
+      - name: Confirm production runtime command is present
+        env:
+          IMAGE_TAG: twenty-crm-spike:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker image inspect "$IMAGE_TAG" \
+            --format 'entrypoint={{json .Config.Entrypoint}} cmd={{json .Config.Cmd}} workdir={{.Config.WorkingDir}}'
+          docker run --rm --entrypoint node "$IMAGE_TAG" --version
