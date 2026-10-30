@@ -57,6 +57,22 @@ API and worker need matching infrastructure values unless noted:
 
 Do not commit secrets. Use Render secret environment variables and Vercel environment variables. Never print secret values in logs or issue reports.
 
+## Cost estimate (Render Hobby workspace, USD)
+
+Using current published Render compute prices, a conservative small production starting point is:
+
+| Resource | Suggested plan | Monthly estimate |
+| --- | --- | ---: |
+| API web service | 1 CPU / 2 GB RAM (`1c-2g`) | $25 |
+| Background worker | 1 CPU / 2 GB RAM (`1c-2g`) | $25 |
+| PostgreSQL | 0.5 CPU / 1 GB RAM (`0.5c-1g`) | $19 |
+| Key Value | 256 MB (`256mb`) | $10 |
+| **Estimated Render subtotal** | | **$79/month** |
+
+This is a planning estimate, not a bill quote. It excludes taxes, usage beyond included workspace bandwidth/build allowances, optional extra database storage, and any external services. Render currently includes 1 GB of Postgres storage; additional storage is billed separately. Cloudflare R2 Standard currently includes 10 GB-month storage, 1 million Class A operations and 10 million Class B operations per month, with no egress charge; usage beyond those allowances is billed. The Render Hobby workspace itself has no monthly workspace fee. Do not create any of these resources until the user explicitly approves the estimated recurring spend.
+
+A lower-cost worker configuration (512 MB RAM) would reduce the Render subtotal by $18 to about $61/month, but I do not recommend starting there without observing the worker's real memory use. Render's free database expires after 30 days and free Key Value is non-persistent; those are unsuitable for production data.
+
 ## Rollout sequence
 
 1. Pass the production Docker image build and image-content checks in GitHub Actions. **Passed.**
