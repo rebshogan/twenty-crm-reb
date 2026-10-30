@@ -9,7 +9,7 @@
 FROM node:26.12.1-alpine3.23@sha256:bc2b334006f15c7167bbeb2f08f28c2df883f7594a0470e04454ebe7560cfe68 AS node-base
 
 # Node 26 no longer bundles Yarn; use the release pinned by this repository.
-RUN printf '%s\\n' '#!/bin/sh' 'exec node "/app/$(sed -n "s/^yarnPath: //p" /app/.yarnrc.yml)" "$@"' \\
+RUN printf '%s\n' '#!/bin/sh' 'exec node "/app/$(sed -n "s/^yarnPath: //p" /app/.yarnrc.yml)" "$@"' \
       > /usr/local/bin/yarn && chmod +x /usr/local/bin/yarn
 
 FROM node-base AS server-deps
@@ -26,8 +26,8 @@ COPY ./packages/twenty-shared/package.json /app/packages/twenty-shared/
 COPY ./packages/twenty-client-sdk/package.json /app/packages/twenty-client-sdk/
 COPY ./packages/twenty-oxlint-rules/package.json /app/packages/twenty-oxlint-rules/
 
-RUN yarn workspaces focus twenty-monorepo twenty-server twenty-emails twenty-shared twenty-client-sdk \\
-    && yarn cache clean \\
+RUN yarn workspaces focus twenty-monorepo twenty-server twenty-emails twenty-shared twenty-client-sdk \
+    && yarn cache clean \
     && npx nx reset
 
 FROM server-deps AS twenty-server-build
@@ -36,26 +36,26 @@ COPY ./packages/twenty-shared /app/packages/twenty-shared
 COPY ./packages/twenty-client-sdk /app/packages/twenty-client-sdk
 COPY ./packages/twenty-server /app/packages/twenty-server
 
-RUN npx nx run twenty-server:lingui:extract \\
-    && npx nx run twenty-server:lingui:compile \\
-    && npx nx run twenty-emails:lingui:extract \\
+RUN npx nx run twenty-server:lingui:extract \
+    && npx nx run twenty-server:lingui:compile \
+    && npx nx run twenty-emails:lingui:extract \
     && npx nx run twenty-emails:lingui:compile
 RUN npx nx run twenty-server:build
 
 # Remove declarations and compiled tests; retain source maps for Sentry.
-RUN find /app/packages/twenty-server/dist -name '*.d.ts' -delete \\
+RUN find /app/packages/twenty-server/dist -name '*.d.ts' -delete \
     && rm -rf /app/packages/twenty-server/dist/packages/twenty-server/test
 RUN yarn workspaces focus --production twenty-emails twenty-shared twenty-client-sdk twenty-server
 
 FROM node-base AS twenty-server-production
 
-RUN apk add --no-cache \\
-    'curl>=8.22.0-r0' \\
-    'libexpat>=2.8.5-r0' \\
-    'nghttp2-libs>=1.69.0-r0' \\
-    'libcrypto3>=3.5.8-r0' \\
-    'libssl3>=3.5.8-r0' \\
-    'postgresql18-client>=18.5-r0' \\
+RUN apk add --no-cache \
+    'curl>=8.22.0-r0' \
+    'libexpat>=2.8.5-r0' \
+    'nghttp2-libs>=1.69.0-r0' \
+    'libcrypto3>=3.5.8-r0' \
+    'libssl3>=3.5.8-r0' \
+    'postgresql18-client>=18.5-r0' \
     'jq>=1.8.2-r0'
 
 COPY ./packages/twenty-docker/twenty/entrypoint.sh /app/entrypoint.sh
@@ -87,9 +87,9 @@ COPY --chown=1000 --from=twenty-server-build /app/packages/twenty-client-sdk/dis
 LABEL org.opencontainers.image.source="https://github.com/rebshogan/twenty-crm-reb"
 LABEL org.opencontainers.image.description="Twenty CRM production API and worker runtime"
 
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/include/node \\
-    && find /app/node_modules -type d -name example -prune -exec rm -rf {} + \\
-    && mkdir -p /app/.local-storage /app/packages/twenty-server/.local-storage \\
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/include/node \
+    && find /app/node_modules -type d -name example -prune -exec rm -rf {} + \
+    && mkdir -p /app/.local-storage /app/packages/twenty-server/.local-storage \
     && chown 1000:1000 /app/.local-storage /app/packages/twenty-server/.local-storage
 
 USER 1000
