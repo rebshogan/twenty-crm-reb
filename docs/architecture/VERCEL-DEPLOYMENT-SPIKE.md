@@ -1,57 +1,66 @@
 # Vercel deployment spike — execution record
 
-**Branch:** `architecture/foundation-plan`  
+**Planning branch:** `architecture/foundation-plan`  
+**Runtime wiring:** draft PR [#1](https://github.com/rebshogan/twenty-crm-reb/pull/1), branch `deployment/vercel-runtime`  
 **Environment:** preview / synthetic data only  
-**Status:** In progress — no application runtime test has passed yet
+**Status:** Production image build verified; HTTP + worker integration and live runtime checks still pending.
 
 ## Verified so far
 
 - [x] Git-connected Vercel project exists and is linked to `rebshogan/twenty-crm-reb`.
-- [x] A Git deployment was built and reached Vercel's `READY` state.
-- [x] The public project alias was inspected in a live browser.
-- [x] The alias returns Vercel `404 NOT_FOUND`, not a Twenty login or application.
-- [x] The inspected deployment was created from branch `architecture/foundation-plan`, commit `6b75d90c23e3d163e71a3aa403c2443a2df7427e`.
-- [x] Its build log reports a short generic Vercel build and no container/server startup. The deployment is a platform build artifact, not proof of a working CRM.
-- [x] Project settings report `framework: null`; the repository root has no `vercel.json` or `vercel.toml`.
-- [x] The upstream Dockerfile was inspected. It has named `twenty-server`, `twenty`, and `twenty-app-dev` stages. The last/default stage is the development all-in-one image.
-- [x] The official Compose file confirms separate `server` and `worker` processes, plus external Postgres and Redis dependencies.
-- [x] The server package defines `worker:prod` as `node dist/queue-worker/queue-worker`.
-- [ ] Container image successfully built.
-- [ ] HTTP server started and health/login/API verified.
-- [ ] Realtime transport verified.
-- [ ] Worker/queue retry/restart tests passed.
-- [ ] Managed Postgres/Redis and S3 persistence verified.
-- [ ] Backup/restore verified.
-- [ ] Cost and commercial-plan gate resolved.
+- [x] Initial project alias was inspected in a live browser and returned Vercel `404 NOT_FOUND`. That was a generic Git deployment, not a running Twenty app.
+- [x] The upstream Dockerfile's last stage was identified as the development all-in-one image. The planning branch now appends an explicit `twenty-vercel` stage based on the production `twenty` server-plus-frontend stage; the development image remains selectable explicitly.
+- [x] GitHub Actions run [41032093355](https://github.com/rebshogan/twenty-crm-reb/actions/runs/41032093355) completed successfully at commit `ce3cb9f556f7c992cc7814578a13ba3e4e43d3d4`.
+  - Built the default production image without pushing it.
+  - Verified `NODE_ENV=production`, `NODE_PORT=3000`, working directory `/app/packages/twenty-server`, `/app/entrypoint.sh`, Node 26.12.1 and Yarn 4.18.1.
+  - Reported image size: 242,689,703 bytes (approximately 231.5 MiB).
+- [x] A temporary Compose smoke stack was added for PostgreSQL 16, Redis 7, Twenty server and worker. It uses throwaway credentials and disposable volumes only.
+- [ ] The newer workflow run [41034297293](https://github.com/rebshogan/twenty-crm-reb/actions/runs/41034297293) is still in progress. It includes the HTTP `/healthz`, frontend HTML and worker-process smoke checks; those checks have not yet been reported as passing.
+- [x] Draft PR [#1](https://github.com/rebshogan/twenty-crm-reb/pull/1) adds Vercel wiring:
+  - Root `Dockerfile.vercel` symlink preserves repository-root Docker build context.
+  - `vercel.json` defines the Twenty container service and a BullMQ worker Daemon.
+  - The worker is deliberately configured with zero instances, and no public rewrite is present. This prevents an unconfigured service from being exposed or starting against nonexistent backing stores.
+- [x] Vercel build [7ei3aGvcWpaYzAdBN9P3vQEnDg57](https://vercel.com/rebshogan-3286/twenty-crm-reb/7ei3aGvcWpaYzAdBN9P3vQEnDg57) reached the container-image build and reported `built in 1294.1s`; the image was then pushed to the Vercel Container Registry.
+- [ ] That Vercel deployment was still in `BUILDING` state at the last check; deployment readiness and runtime behaviour are not yet verified.
 
-## Findings and immediate blockers
+## Findings and remaining blockers
 
-1. **The current 404 is expected from the current repository/project configuration.** The project has no Vercel container/service deployment configuration. A successful Vercel Git build did not package and launch Twenty's production Docker image.
-2. **The Dockerfile default target must not be used blindly.** Its last stage is `twenty-app-dev`, which bundles local stateful dependencies and development settings. Production requires explicit `twenty` (server plus frontend) for HTTP.
-3. **The worker needs its own process configuration.** It should use the same immutable production image and run `yarn worker:prod`, with migrations and cron registration disabled in the worker environment because the server/release task owns those duties.
-4. **No durable application state may live in a Vercel container.** PostgreSQL, Redis and S3-compatible storage must be separate services.
-5. **Sandbox creation was rejected by the connected Vercel API with HTTP 400.** No sandbox was provisioned; the exact API rejection did not expose a diagnostic reason in the v4 attempt. A v3 retry also returned 400 after the required project ID was supplied. No infrastructure resource was created by those attempts.
-6. **Repository clone from the execution container was unavailable because outbound DNS/network access to GitHub failed.** This prevents a local Docker build in this execution environment. It is not a failure of the Dockerfile itself.
+1. **The original 404 was a configuration problem.** The first Git deployment had no container/service config and did not start Twenty.
+2. **The Vercel builder initially used the Dockerfile directory as its context.** This failed because the Dockerfile's COPY instructions expect monorepo-root files such as `package.json`. The root symlink is the current fix; the latest build has passed this stage and built the image.
+3. **No public route is intentionally configured yet.** Services are private until a top-level rewrite exposes them. Do not add a public rewrite until server environment variables and backing services exist.
+4. **No worker is running yet.** The Daemon is configured with `iad1: 0` intentionally; the process command is `yarn worker:prod`.
+5. **Migrations need explicit ownership.** Twenty's server entrypoint runs database setup/migrations and cron registration unless disabled. Before scaling HTTP instances, set `DISABLE_DB_MIGRATIONS=true` on the service and arrange one controlled migration task. The worker command overrides the image entrypoint, so it does not run the server entrypoint migration routine.
+6. **No durable backing services have been provisioned.** PostgreSQL, Redis and S3-compatible storage are not configured. No external database, Redis, object bucket, or production secrets have been created.
+7. **The connected Vercel team is on Hobby.** Keep this synthetic-only. Do not import real business contacts/interviews or use it for commercial operations until the plan and data-handling terms are suitable.
+8. **Cost still needs review.** The image has been pushed to Vercel Container Registry. Confirm registry/service/daemon usage pricing and plan eligibility before enabling a public service or nonzero worker count.
 
 ## Next test sequence
 
-- [ ] Confirm the team has access to Vercel Services and Daemons on its current plan; do not assume beta availability from public documentation alone.
-- [ ] Use a runner with GitHub access and Docker/BuildKit to build `packages/twenty-docker/twenty/Dockerfile` from repository root with `--target twenty`.
-- [ ] Build the same immutable image for the worker and override its command to `yarn worker:prod`.
-- [ ] Do not write a Vercel config until the actual Service/Daemon config schema and Dockerfile build context/target behaviour are proven. In particular, the documented Service schema exposes an entrypoint path but does not show a Docker build-target option.
-- [ ] Do not push production images, create paid managed stores, or deploy a live worker until the plan/price and runtime tests are reviewed.
+- [ ] Confirm the latest GitHub smoke workflow completes successfully; review server and worker logs if it fails.
+- [ ] Confirm Vercel deployment `7ei3aGvcWpaYzAdBN9P3vQEnDg57` reaches a terminal successful state.
+- [ ] Verify the image's effective entrypoint, command, working directory and exposed port in Vercel's build/runtime output.
+- [ ] Confirm the team can use Vercel Services and Daemons on its current plan.
+- [ ] Decide whether to provision managed PostgreSQL, Redis and S3-compatible storage after reviewing their costs. Do not create billable stores without approval.
+- [ ] Configure environment variables in Vercel's encrypted environment-variable store; never commit values.
+- [ ] Test login/session cookies, REST, GraphQL, frontend assets, realtime transport, uploads and file persistence with synthetic data.
+- [ ] Test worker success, retry/backoff, duplicate delivery, SIGTERM and restart recovery before setting daemon instances above zero.
+- [ ] Test a controlled migration and backup restore; isolate preview data from production.
+- [ ] Add a public rewrite only after the application and its backing services are configured and verified.
 
 ## Acceptance table
 
 | Test | Result | Evidence |
 |---|---|---|
-| Vercel project Git link | Pass | Project settings |
-| Current app route | Fail | Live browser: 404 NOT_FOUND |
-| Correct production Docker target identified | Pass | Dockerfile target declarations |
-| HTTP runtime | Not run | No image built |
-| Worker runtime | Not run | No image built |
-| PostgreSQL / Redis | Not provisioned | No external stores created |
-| S3 uploads | Not run | No bucket created |
+| Vercel Git link | Pass | Project settings |
+| Original generic deployment route | Fail as expected | Live browser: 404 NOT_FOUND |
+| Production Docker image build | Pass | GitHub Actions run 41032093355 |
+| Production image size/runtime metadata | Pass | CI image inspect; 242,689,703 bytes |
+| Vercel container image build | Built; deployment pending | Vercel build logs: 1294.1s, image push started/completed |
+| HTTP health + frontend | Pending | GitHub smoke run 41034297293 |
+| Worker process / queue behaviour | Pending | GitHub smoke run 41034297293 |
+| Realtime transport | Not run | Requires running app |
+| Managed PostgreSQL / Redis | Not provisioned | No external stores created |
+| S3 upload persistence | Not run | No bucket created |
 | Backup restore | Not run | No database created |
 | Commercial data suitability | Blocked | Team plan is Hobby |
 
