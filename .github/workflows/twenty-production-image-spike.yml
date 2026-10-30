@@ -7,6 +7,7 @@ on:
     paths:
       - "packages/twenty-docker/twenty/Dockerfile"
       - "packages/twenty-docker/twenty/entrypoint.sh"
+      - "packages/twenty-docker/docker-compose.smoke.yml"
       - "packages/twenty-server/**"
       - "packages/twenty-front/**"
       - "packages/twenty-shared/**"
@@ -64,7 +65,6 @@ jobs:
             --format 'image={{.RepoTags}} size_bytes={{.Size}} architecture={{.Architecture}}'
 
       - name: Verify the Dockerfile default is the production runtime
-
         env:
           IMAGE_TAG: twenty-crm-spike:${{ github.sha }}
         run: |
@@ -78,3 +78,26 @@ jobs:
           docker image inspect "$IMAGE_TAG" --format '{{json .Config.Cmd}}' | grep -F 'node'
           docker run --rm --entrypoint node "$IMAGE_TAG" --version
           docker run --rm --entrypoint yarn "$IMAGE_TAG" --version
+
+      - name: Smoke test HTTP server and BullMQ worker
+        env:
+          TWENTY_IMAGE: twenty-crm-spike:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          COMPOSE_FILE=packages/twenty-docker/docker-compose.smoke.yml
+
+          cleanup() {
+            docker compose -f "$COMPOSE_FILE" logs --no-color --tail=120 server worker || true
+            docker compose -f "$COMPOSE_FILE" down --volumes --remove-orphans || true
+          }
+          trap cleanup EXIT
+
+          docker compose -f "$COMPOSE_FILE" up --detach --wait --wait-timeout 900
+
+          curl --fail --silent --show-error http://localhost:3000/healthz
+          curl --fail --silent --show-error --location http://localhost:3000/ \
+            --output "$RUNNER_TEMP/twenty-index.html"
+          grep -Eiq '<!doctype html|<html' "$RUNNER_TEMP/twenty-index.html"
+
+          docker compose -f "$COMPOSE_FILE" exec --no-TTY worker \
+            sh -lc 'ps | grep -F "dist/queue-worker/queue-worker" | grep -v grep'
